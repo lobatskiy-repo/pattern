@@ -1,19 +1,14 @@
-import fetch from 'node-fetch';
+import { GetCapitalServiceInterface } from "./getCapitalServicesIntrface";
+import { CacheInterface, LoggerInterface } from "./Inteface";
+import { CapitalServiceWithLogger } from "./sercives/CapitalServiceWithLogger";
+import { GetCapitalServices } from "./sercives/getCapitalServices";
 
 class GetCapitalCommand {
-  private static API_URL: string = 'https://restcountries.com/v3.1/name/';
-
-  constructor() {
-    // Add arguments configuration here if needed
-  }
+  constructor(private service: GetCapitalServiceInterface) {}
 
   async execute(country: string): Promise<void> {
-    const url = `${GetCapitalCommand.API_URL}${encodeURIComponent(country)}`;
-
     try {
-      const response = await fetch(url);
-      const data = await response.json();
-      const capital = data[0]?.capital?.[0];
+      const capital = await this.service.getCapital(country);
 
       if (capital) {
         console.log(`The capital of ${country} is ${capital}`);
@@ -26,6 +21,37 @@ class GetCapitalCommand {
   }
 }
 
+class ConsoleLogger implements LoggerInterface {
+  log(message: string): void {
+    console.log(message);
+  }
+}
+
+class SimpleCache implements CacheInterface {
+  private cache: Record<string, string> = {};
+
+  get(key: string): string | null {
+    return this.cache[key] || null;
+  }
+
+  set(key: string, value: string): void {
+    this.cache[key] = value;
+  }
+}
+
 // Usage example
-const command = new GetCapitalCommand();
-command.execute('France');
+const baseService = new GetCapitalServices();
+const logger = new ConsoleLogger();
+const cache = new SimpleCache();
+
+// Decorating the base service with logger and cache
+const cachedService = new CapitalServiceWithLogger(baseService, logger);
+const loggedAndCachedService = new CapitalServiceWithLogger(
+  cachedService,
+  cache
+);
+
+// Using the final decorated service in the command
+const command = new GetCapitalCommand(loggedAndCachedService);
+
+command.execute("France");
